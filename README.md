@@ -35,6 +35,7 @@ No modules.
 | <a name="input_services"></a> [services](#input\_services) | Consul services monitored by Consul-Terraform-Sync | <pre>map(<br>    object({<br>      id        = string<br>      name      = string<br>      kind      = string<br>      address   = string<br>      port      = number<br>      meta      = map(string)<br>      tags      = list(string)<br>      namespace = string<br>      status    = string<br><br>      node                  = string<br>      node_id               = string<br>      node_address          = string<br>      node_datacenter       = string<br>      node_tagged_addresses = map(string)<br>      node_meta             = map(string)<br><br>      cts_user_defined_meta = map(string)<br>    })<br>  )</pre> | n/a | yes |
 | <a name="input_zone_id"></a> [zone\_id](#input\_zone\_id) | The ID of the hosted zone. | `string` | n/a | yes |
 | <a name="input_domain"></a> [domain](#input\_domain) | By default, Consul responds to DNS queries in the "consul" domain. This flag can be used to change that domain. | `string` | `"consul"` | no |
+| <a name="input_prefer_wan_address"></a> [prefer\_wan\_address](#input\_prefer\_wan\_address) | If set to true, on node lookups will prefer a node's configured WAN address. | `bool` | `false` | no |
 | <a name="input_ttl"></a> [ttl](#input\_ttl) | The TTL of the records. | `number` | `1` | no |
 
 ## Outputs

@@ -15,6 +15,12 @@ variable "domain" {
   default     = "consul"
 }
 
+variable "prefer_wan_address" {
+  description = "If set to true, on node lookups will prefer a node's configured WAN address."
+  type        = bool
+  default     = false
+}
+
 provider "aws" {
   region = var.region
 }
@@ -63,7 +69,47 @@ locals {
     for service in local.services : service.name
   ])
 
-  records = flatten([
+  node_ids = distinct([
+    for service in var.services : service.node_id
+  ])
+
+  node_tagged_addresses_preference_ipv4 = var.prefer_wan_address ? ["wan_ipv4", "lan_ipv4"] : ["lan_ipv4", "wan_ipv4"]
+  node_tagged_addresses_preference_ipv6 = var.prefer_wan_address ? ["wan_ipv6", "lan_ipv6"] : ["lan_ipv6", "wan_ipv6"]
+
+  node_records = [for value in flatten(values({
+    for node_id in local.node_ids : node_id => [
+      merge([
+        for service in var.services : {
+          name  = "${service.node}.node.${service.node_datacenter}.${var.domain}"
+          type  = "A"
+          value = coalesce(lookup(service.node_tagged_addresses, local.node_tagged_addresses_preference_ipv4[0], null), lookup(service.node_tagged_addresses, local.node_tagged_addresses_preference_ipv4[1], null))
+        } if service.node_id == node_id && (contains(keys(service.node_tagged_addresses), "lan_ipv4") || contains(keys(service.node_tagged_addresses), "wan_ipv4"))
+      ]...),
+      merge([
+        for service in var.services : {
+          name  = "${service.node}.node.${var.domain}"
+          type  = "A"
+          value = coalesce(lookup(service.node_tagged_addresses, local.node_tagged_addresses_preference_ipv4[0], null), lookup(service.node_tagged_addresses, local.node_tagged_addresses_preference_ipv4[1], null))
+        } if service.node_id == node_id && (contains(keys(service.node_tagged_addresses), "lan_ipv4") || contains(keys(service.node_tagged_addresses), "wan_ipv4"))
+      ]...),
+      merge([
+        for service in var.services : {
+          name  = "${service.node}.node.${service.node_datacenter}.${var.domain}"
+          type  = "AAAA"
+          value = coalesce(lookup(service.node_tagged_addresses, local.node_tagged_addresses_preference_ipv6[0], null), lookup(service.node_tagged_addresses, local.node_tagged_addresses_preference_ipv6[1], null))
+        } if service.node_id == node_id && (contains(keys(service.node_tagged_addresses), "lan_ipv6") || contains(keys(service.node_tagged_addresses), "wan_ipv6"))
+      ]...),
+      merge([
+        for service in var.services : {
+          name  = "${service.node}.node.${var.domain}"
+          type  = "AAAA"
+          value = coalesce(lookup(service.node_tagged_addresses, local.node_tagged_addresses_preference_ipv6[0], null), lookup(service.node_tagged_addresses, local.node_tagged_addresses_preference_ipv6[1], null))
+        } if service.node_id == node_id && (contains(keys(service.node_tagged_addresses), "lan_ipv6") || contains(keys(service.node_tagged_addresses), "wan_ipv6"))
+      ]...)
+    ]
+  })) : value if length(keys(value)) == 3]
+
+  service_records = flatten([
     for name in local.service_names : flatten([
       for service in local.services : flatten([
         [
@@ -120,6 +166,8 @@ locals {
     ])
   ])
 
+  records = flatten([local.service_records, local.node_records])
+
   record_names = distinct([for record in local.records : record.name])
 
   a_records_by_name    = { for name in local.record_names : name => distinct([for record in local.records : record.value if record.name == name && record.type == "A"]) }
@@ -129,12 +177,6 @@ locals {
   a_records    = { for key, value in local.a_records_by_name : key => value if length(value) > 0 }
   aaaa_records = { for key, value in local.aaaa_records_by_name : key => value if length(value) > 0 }
   srv_records  = { for key, value in local.srv_records_by_name : key => value if length(value) > 0 }
-
-  # values = {
-  #   A = local.A
-  #   AAAA = local.AAAA
-  #   SRV = local.SRV
-  # }
 }
 
 resource "aws_route53_record" "a" {
@@ -169,10 +211,10 @@ resource "aws_route53_record" "srv" {
 
 # resource "null_resource" "null_resource" {
 #   provisioner "local-exec" {
-#     command = "echo '${jsonencode(local.SRV)}' | jq > test.json"
+#     command = "echo '${jsonencode(local.values)}' | jq > test.json"
 #   }
 #
 #   triggers = {
-#     values = sha1(jsonencode(local.SRV))
+#     values = sha1(jsonencode(local.values))
 #   }
 # }
