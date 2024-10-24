@@ -36,7 +36,7 @@
     "prepare": "lefthook install && terraform init -backend=false -upgrade && tflint --init",
     "syncpack": "syncpack fix-mismatches && syncpack set-semver-ranges && syncpack format",
     "tflint": "tflint --recursive --chdir .",
-    "trivy": "trivy fs --scanners misconfig --include-dev-deps --skip-dirs '.terraform/**' .",
+    "trivy": "trivy fs --scanners misconfig --include-dev-deps --skip-dirs '.terraform/**' --tf-vars example.tfvars .",
     "typecheck": "terraform validate"
   },
   "sideEffects": false,
